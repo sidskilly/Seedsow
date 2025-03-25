@@ -4,6 +4,12 @@
 #include "World.h"
 #include "PacketCaptureCredits.h"
 #include "Client.h"
+#include "Logging.h"
+#include "easylogging++.h"
+#include "fastrand.h"
+
+INITIALIZE_EASYLOGGINGPP
+
 
 #if defined(_WIN32) && !defined(_WINDLL)
 
@@ -22,7 +28,7 @@ LRESULT CALLBACK AboutProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	switch (message)
 	{
 	case WM_INITDIALOG:
-		SetWindowText(GetDlgItem(hDlg, IDC_CREDITS), "GDL - Classic Dereth " SERVER_VERSION_NUMBER_STRING "\n" SERVER_VERSION_STRING "\n\nClassic Dereth created by Dekaru (dekaru@protonmail.com)\nhttps://github.com/bDekaru/ClassicDereth\n\nBased on the GamesDeadLol Server project.\nhttps://github.com/GamesDeadLol/GDL\n\nPhatAC originally created by Pea and halted in September 2017.\n\nPhatAC was created in C++ and compiled with Visual Studio. Third-party libraries used include zlib, SHA512 and ISAAC algorithms.");
+		SetWindowText(GetDlgItem(hDlg, IDC_CREDITS), "GDL - Classic Dereth - Seedsow " SERVER_VERSION_NUMBER_STRING "\n" SERVER_VERSION_STRING "\n\nClassic Dereth created by Dekaru (dekaru@protonmail.com)\nhttps://github.com/bDekaru/ClassicDereth\n\nBased on the GamesDeadLol Server project.\nhttps://github.com/GamesDeadLol/GDL\n\nPhatAC originally created by Pea and halted in September 2017.\n\nPhatAC was created in C++ and compiled with Visual Studio. Third-party libraries used include zlib, SHA512 and ISAAC algorithms.");
 		// SetWindowText(GetDlgItem(hDlg, IDC_PACKETCREDITS), PACKET_CAPTURE_CREDITS);
 		return TRUE;
 
@@ -296,6 +302,8 @@ std::string GetWindowStringText(HWND hWnd)
 
 INT_PTR CALLBACK MainProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
+
+
 	switch (message)
 	{
 	case WM_INITDIALOG:
@@ -306,7 +314,7 @@ INT_PTR CALLBACK MainProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			g_Logger.AddLogCallback(OutputConsole);
 
 			HWND hVersion = GetDlgItem(hDlg, IDC_VERSION);
-			SetWindowText(hVersion, "GDL - Classic Dereth " SERVER_VERSION_NUMBER_STRING " " SERVER_VERSION_STRING); // "PhatAC compiled " __TIMESTAMP__);
+			SetWindowText(hVersion, "GDL - Classic Dereth - SeedSow " SERVER_VERSION_NUMBER_STRING " " SERVER_VERSION_STRING); // "PhatAC compiled " __TIMESTAMP__);
 
 			HICON hIcon = LoadIcon(g_hInstance, MAKEINTRESOURCE(IDI_PHATAC));
 			SendMessage(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
@@ -318,6 +326,33 @@ INT_PTR CALLBACK MainProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 #ifdef PUBLIC_BUILD
 			ShowWindow(GetDlgItem(hDlg, IDC_DEBUGCHECK), SW_HIDE);
 #endif
+			// Start Server on initialization 
+			if (!g_pPhatServer)
+			{
+				std::string serverConfig = GetWindowStringText(GetDlgItem(hDlg, IDC_SERVERCONFIG));
+
+				if (serverConfig.empty())
+				{
+					serverConfig = DEFAULT_CONFIG_FILE;
+				}
+
+				std::string configFilePath = g_pGlobals->GetGameFile(serverConfig.c_str());
+
+				if (FileExists(configFilePath.c_str()))
+				{
+					g_pPhatServer = new CPhatServer(configFilePath.c_str());
+					SetWindowText(GetDlgItem(hDlg, IDC_TOGGLE), "Stop");
+					SetWindowText(GetDlgItem(hDlg, IDC_CONNECTLINK),
+						csprintf("acclient.exe -h %s -p %s -a username:password -rodat off",
+						(!strcmp(g_pPhatServer->Config().GetValue("bind_ip"), "0.0.0.0") ? "127.0.0.1" : g_pPhatServer->Config().GetValue("bind_ip")),
+							g_pPhatServer->Config().GetValue("bind_port")));
+				}
+				else
+				{
+					MsgBox("Please specify a valid config filename.");
+				}
+			}
+
 			return TRUE;
 		}
 	case WM_COMMAND:
@@ -366,7 +401,7 @@ INT_PTR CALLBACK MainProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 						HWND hWndConsole = GetDlgItem(hDlg, IDC_CONSOLE);
 
 						SetWindowText(hWndConsole, "");
-						LOG(Temp, Normal, "Console cleared.\n");
+						SERVER_INFO << "Console cleared.";
 					}
 				}
 				break;
@@ -375,7 +410,7 @@ INT_PTR CALLBACK MainProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 				{
 					if (!g_pPhatServer)
 					{
-						LOG(Temp, Normal, "You must be running a server to broadcast a system message.\n");
+						SERVER_INFO << "You must be running a server to broadcast a system message.";
 						break;
 					}
 
@@ -392,7 +427,7 @@ INT_PTR CALLBACK MainProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 				{
 					if (!g_pPhatServer)
 					{
-						MsgBox("You might want to start the server first. ;)");
+						MsgBox("You might want to start the server first! ;)");
 						break;
 					}
 
@@ -491,7 +526,8 @@ INT_PTR CALLBACK MainProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 						SetWindowText(GetDlgItem(hDlg, IDC_TOGGLE), "Start");
 						SetWindowText(GetDlgItem(hDlg, IDC_CONNECTLINK), "");
 
-						LOG(Temp, Normal, "Server shutdown.\n");
+						WINLOG(Temp, Normal, "Server shudown.\n");
+						SERVER_INFO << "Server shutdown.";
 					}
 				}
 				break;
@@ -522,8 +558,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 #endif
 
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-	srand((unsigned int)time(NULL));
-	Random::Init();
+	//srand((unsigned int)time(NULL));
+	//Random::Init();
 	InitPhatSDK();
 
 	g_pGlobals = new CGlobals();
@@ -548,9 +584,10 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 	}
 
 	extern DWORD64 g_RandomAdminPassword;
-	g_RandomAdminPassword = ((DWORD64)Random::GenUInt(0, 0xFFFFFFF0) << 32) | Random::GenUInt(0, 0xFFFFFFF0) + GetTickCount64();
+	g_RandomAdminPassword = ((DWORD64)FastRNG.NextUInt(0, 0xFFFFFFF0) << 32) | FastRNG.NextUInt(0, 0xFFFFFFF0) + GetTickCount64();
 
-	LOG(UserInterface, Normal, "Welcome to GDL - Classic Dereth!\n");
+	WINLOG(Temp, Normal, "Welcome to GDL - Classic Dereth - SeedSow!!!\n");
+	SERVER_INFO << "Welcome to GDL - Classic Dereth - SeedSow!";
 
 	ShowWindow(g_hWndMain, nCmdShow);
 

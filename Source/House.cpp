@@ -8,6 +8,7 @@
 #include "AllegianceManager.h"
 #include "Client.h"
 #include "EmoteManager.h"
+#include "fastrand.h"
 
 #define HOUSE_SAVE_INTERVAL 300.0
 
@@ -328,7 +329,8 @@ bool CHouseWeenie::HasAccess(CPlayerWeenie *requester)
 	if (houseData->_allegianceAccess)
 	{
 		std::string alleg;
-		if (requester->m_Qualities.InqString(ALLEGIANCE_NAME_STRING, alleg)) {
+		if (requester->m_Qualities.InqString(ALLEGIANCE_NAME_STRING, alleg))
+		{
 
 			AllegianceTreeNode *ownerAllegianceNode = g_pAllegianceManager->GetTreeNode(houseOwnerId);
 			AllegianceTreeNode *requesterAllegianceNode = g_pAllegianceManager->GetTreeNode(requesterId);
@@ -366,7 +368,8 @@ bool CHouseWeenie::HasStorageAccess(CPlayerWeenie *requester)
 	if (houseData->_allegianceStorageAccess)
 	{
 		std::string alleg;
-		if (requester->m_Qualities.InqString(ALLEGIANCE_NAME_STRING, alleg)) {
+		if (requester->m_Qualities.InqString(ALLEGIANCE_NAME_STRING, alleg))
+		{
 			AllegianceTreeNode *ownerAllegianceNode = g_pAllegianceManager->GetTreeNode(houseOwnerId);
 			AllegianceTreeNode *requesterAllegianceNode = g_pAllegianceManager->GetTreeNode(requesterId);
 
@@ -420,7 +423,7 @@ void CSlumLordWeenie::Tick()
 	{
 		if (!_initialized)
 		{
-			_nextHeartBeat = Timer::cur_time + Random::GenUInt(1, 10);
+			_nextHeartBeat = Timer::cur_time + FastRNG.Next(1, 10);
 
 			CHouseWeenie *house = GetHouse();
 			if (!house)
@@ -462,7 +465,7 @@ void CSlumLordWeenie::Tick()
 
 			CheckRentPeriod();
 
-			_nextHeartBeat = Timer::cur_time + Random::GenUInt(30 * 60, 60 * 60); //check again in 30 to 60 minutes.
+			_nextHeartBeat = Timer::cur_time + FastRNG.Next(30 * 60, 60 * 60); //check again in 30 to 60 minutes.
 		}
 	}
 }
@@ -1042,11 +1045,11 @@ void CSlumLordWeenie::RentHouse(CPlayerWeenie *player, const PackableList<DWORD>
 		}
 		DoUseResponse(player);
 		player->RecalculateCoinAmount();
+
 		player->Save();
 		if (house->ShouldSave())
 			house->Save();
 		houseData->Save();
-
 
 		if (CWeenieObject *owner = g_pWorld->FindObject(houseData->_ownerId))
 			g_pHouseManager->SendHouseData(owner->AsPlayer(), house->GetHouseDID()); //update house's owner panel if the owner is online.
@@ -1064,7 +1067,7 @@ void CHookWeenie::Tick()
 {
 	if (!_initialized && _nextInitCheck != -1.0 && _nextInitCheck <= Timer::cur_time)
 	{
-		_nextInitCheck = Timer::cur_time + Random::GenUInt(1, 10);
+		_nextInitCheck = Timer::cur_time + FastRNG.Next(1, 10);
 
 		CHouseData *houseData = GetHouseData();
 
@@ -1205,6 +1208,9 @@ void CHookWeenie::UpdateHookedObject(CWeenieObject *hookedItem, bool sendUpdate)
 		return;
 
 	DWORD value;
+
+	DEBUG_DATA << "InqDataID (House.cpp:1209): " << hookedItem->id << " " "... ";
+
 	if (hookedItem->m_Qualities.InqDataID(SETUP_DID, value))
 	{
 		m_Qualities.SetDataID(SETUP_DID, value);
@@ -1303,6 +1309,9 @@ void CHookWeenie::ClearHookedObject(bool sendUpdate)
 	CWeenieDefaults *defaults = g_pWeenieFactory->GetWeenieDefaults(m_Qualities.id);
 
 	DWORD value;
+
+	DEBUG_DATA << "InqDataID (House.cpp:1311): " << defaults->m_WCID << " " << defaults->m_Description << "... ";
+
 	if (defaults->m_Qualities.InqDataID(SETUP_DID, value))
 	{
 		m_Qualities.SetDataID(SETUP_DID, value);
